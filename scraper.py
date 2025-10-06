@@ -105,21 +105,17 @@ def parse_xml_data(xml_text):
 
 
 def write_data_to_csv(data, filename, fieldnames):
-    """Creates the 'data' directory and writes the CSV file inside it."""
+    """Writes the list of dictionaries to a CSV file in the repository root."""
     if not data:
         print("No data to write. Aborting CSV creation.")
         return
 
-    # 1. Define the directory path relative to the repo root
-    data_dir = os.path.join(os.getcwd(), DATA_DIR_NAME)
-    os.makedirs(data_dir, exist_ok=True)
-    
-    # 2. Define the full file path inside the new directory
-    file_path = os.path.join(data_dir, filename) 
-    
     try:
-        # Write the list of dictionaries to a CSV file
-        # We use 'w' mode (write) to overwrite the old file with the complete, new data every time.
+        # 💡 THIS IS THE FIX: Saves the file to the current working directory, 
+        # which is the repository root on the GitHub Actions runner.
+        file_path = os.path.join(os.getcwd(), filename) 
+        
+        # The file is created here: /home/runner/work/your-repo-name/your-repo-name/opec_basket_data.csv
         with open(file_path, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
