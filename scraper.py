@@ -1,8 +1,4 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import time
+import requests
 import csv
 import xml.etree.ElementTree as ET
 import os
@@ -11,53 +7,55 @@ import os
 XML_URL = "https://www.opec.org/basket/basketDayArchives.xml"
 OUTPUT_FILENAME = "opec_basket_data.csv"
 FIELDNAMES = ["Date", "Price", "Currency"]
+# The XML uses a default namespace, which is defined at the root: xmlns="http://tempuri.org/basketDayArchives.xsd"
+# We reference it here. The 'ns' prefix can be anything.
 NAMESPACE = {'ns': 'http://tempuri.org/basketDayArchives.xsd'}
 
-def get_webdriver():
-    """Configures and initializes a headless Chrome WebDriver."""
-    options = Options()
-    
-    # 1. Essential arguments for running headless on a Linux server (GitHub Actions Ubuntu runner)
-    options.add_argument("--headless")              # Run without a GUI
-    options.add_argument("--no-sandbox")            # Bypass OS security model (required on some systems)
-    options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
-    options.add_argument("--window-size=1920,1080")  # Set a defined viewport size
-    
-    # 2. Use webdriver_manager to automatically download the correct ChromeDriver version
-    # This avoids hardcoding the path and makes it compatible with GitHub Actions
-    service = Service(ChromeDriverManager().install())
-    
-    # 3. Initialize the WebDriver
-    driver = webdriver.Chrome(service=service, options=options)
-    print("WebDriver initialized successfully in headless mode.")
-    return driver
-
-def scrape_data(driver):
-    """Navigates to the URL, scrapes the XML page source, and extracts data."""
+def fetch_xml_data():
+    """Fetches the XML content directly using the requests library."""
     try:
-        driver.get(XML_URL)
-        print(f"Navigated to {XML_URL}")
-        
-        # Give the page a moment to load and execute any required JavaScript
-        time.sleep(5)
-        
-        # Get the page source (XML data)
-        page_source = driver.page_source
-        
-        # Parse the XML data
-        root = ET.fromstring(page_source)
+        print(f"Fetching XML data directly from {XML_URL}...")
+        response = requests.get(XML_URL, timeout=10)
+        response.raise_for_status()  # Check for bad status codes (4xx or 5xx)
+        print("Successfully retrieved XML content.")
+        return response.content
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching XML: {e}")
+        return None
+
+def parse_xml_data(xml_content):
+    """Parses the XML content and extracts the required data points."""
+    if not xml_content:
+        return None
+
+    try:
+        # Parse the XML data from the byte string
+        root = ET.fromstring(xml_content)
 
         extracted_data = []
+        # CRUCIAL FIX: XPath must target the correct element name (BasketList) 
+        # and correctly access the child elements (Date and Value) within the namespace.
         for entry in root.findall(".//ns:BasketList", NAMESPACE):
-            date = entry.get("data")
-            value = entry.get("val")
-            extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
+            # FIX: Get the text content of the child elements, not attributes.
+            date_element = entry.find('ns:Date', NAMESPACE)
+            value_element = entry.find('ns:Value', NAMESPACE)
+            
+            date = date_element.text if date_element is not None else 'N/A'
+            value = value_element.text if value_element is not None else 'N/A'
+            
+            # Only append if both crucial fields were found
+            if date != 'N/A' and value != 'N/A':
+                extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
 
         print(f"Extracted {len(extracted_data)} data points.")
         return extracted_data
 
+    except ET.ParseError as e:
+        print(f"XML Parsing Error: {e}")
+        return None
     except Exception as e:
-        print(f"An error occurred during scraping: {e}")
+        print(f"An unexpected error occurred during XML parsing: {e}")
         return None
 
 def write_data_to_csv(data, filename, fieldnames):
@@ -66,22 +64,27 @@ def write_data_to_csv(data, filename, fieldnames):
         print("No data to write. Aborting CSV creation.")
         return
 
+    # FIX: The file is now guaranteed to be written to the current working directory (repo root)
     try:
-        with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        # Use 'os.path.join' for best cross-platform compatibility, though simple 'filename' is fine here
+        file_path = os.path.join(os.getcwd(), filename)
+        with open(file_path, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
-        print(f"Scraped data successfully written to {filename}")
+        print(f"Scraped data successfully written to {file_path}")
     except IOError as e:
         print(f"Error writing to CSV file: {e}")
 
 if __name__ == "__main__":
-    driver = None
-    try:
-        driver = get_webdriver()
-        data = scrape_data(driver)
+    # 1. Fetch the XML content
+    xml_content = fetch_xml_data()
+
+    if xml_content:
+        # 2. Parse the content
+        data = parse_xml_data(xml_content)
+        
+        # 3. Write to CSV
         write_data_to_csv(data, OUTPUT_FILENAME, FIELDNAMES)
-    finally:
-        if driver:
-            driver.quit()
-            print("WebDriver closed.")
+
+    print("Scraping process finished.")
