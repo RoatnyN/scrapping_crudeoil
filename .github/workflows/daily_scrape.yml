@@ -1,4 +1,4 @@
-name: Daily Selenium Data Scraper 🌐
+name: Daily Selenium Data Scraper
 on:
   # Schedule: Runs every day at 00:00 UTC (midnight)
   schedule:
@@ -14,27 +14,27 @@ jobs:
       contents: write # This is essential for the stefanzweifel/git-auto-commit-action to work
 
     steps:
-      - name: ⬇️ Checkout Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🐍 Set up Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 📦 Install Python dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           # Includes the necessary libraries for data processing and Selenium
           pip install selenium webdriver-manager pandas 
 
-      - name: ⚙️ Run Scraper Script (with Selenium)
+      - name: Run Scraper Script (with Selenium)
         run: python scraper.py
 
       # ADDED DIAGNOSTIC STEP: Confirm the file exists before committing
-      - name: 🔎 CRITICAL: Check Directory Contents & File Status
+      - name: CRITICAL: Check Directory Contents & File Status
         run: |
           echo "--- Directory Listing ---"
           ls -lh
@@ -57,3 +57,4 @@ jobs:
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
           file_pattern: 'opec_basket_data.csv'
+
