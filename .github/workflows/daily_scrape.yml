@@ -34,7 +34,7 @@ jobs:
         run: python scraper.py
 
       # ADDED DIAGNOSTIC STEP: Confirm the file exists before committing
-      - name: CRITICAL: Check Directory Contents & File Status
+      - name:CRITICAL: Check Directory Contents & File Status 
         run: |
           echo "--- Directory Listing ---"
           ls -lh
@@ -57,4 +57,5 @@ jobs:
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
           file_pattern: 'opec_basket_data.csv'
+
 
