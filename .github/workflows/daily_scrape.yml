@@ -1,0 +1,40 @@
+name: Daily Selenium Data Scraper 🌐
+
+on:
+  # Schedule: Runs every day at 00:00 UTC (midnight)
+  schedule:
+    - cron: '0 0 * * *'
+  # Manual Trigger: Allows you to run this workflow instantly
+  workflow_dispatch:
+
+jobs:
+  scrape_and_commit:
+    runs-on: ubuntu-latest # The virtual machine environment
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }} # Needed for the auto-commit step
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Install Python dependencies
+        # Install Selenium and the necessary webdriver_manager
+        run: |
+          python -m pip install --upgrade pip
+          pip install selenium webdriver-manager
+
+      - name: ⚙️ Run Scraper Script (with Selenium)
+        # Executes your Python file
+        run: python scraper.py
+
+      - name: ➕ Commit and Push New Data
+        # Action to automatically commit and push any changes detected
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
+          file_pattern: 'opec_basket_data.csv'
