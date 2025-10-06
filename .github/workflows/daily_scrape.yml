@@ -11,11 +11,17 @@ jobs:
   scrape_and_commit:
     runs-on: ubuntu-latest # The virtual machine environment
 
+    # Ensure the GITHUB_TOKEN has permission to write back to the repo
+    permissions:
+      contents: write
+
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }} # Needed for the auto-commit step
+          # This token is automatically provided by GitHub and is necessary
+          # for the auto-commit action to push changes.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🐍 Set up Python
         uses: actions/setup-python@v5
@@ -26,15 +32,30 @@ jobs:
         # Install Selenium and the necessary webdriver_manager
         run: |
           python -m pip install --upgrade pip
-          pip install selenium webdriver-manager
+          pip install selenium webdriver-manager pandas # Assuming you use pandas for CSV
 
       - name: ⚙️ Run Scraper Script (with Selenium)
-        # Executes your Python file
+        # Executes your Python file. Ensure 'scraper.py' saves to 
+        # the repository root: 'opec_basket_data.csv'
         run: python scraper.py
+
+      # ------------------------------------------------------------------
+      # CRITICAL DIAGNOSTIC STEP
+      # This step confirms the file exists before attempting to commit it.
+      - name: 🔎 Verify opec_basket_data.csv exists
+        run: |
+          echo "Checking for 'opec_basket_data.csv' in the repository root:"
+          # This command lists the file and forces the step to fail if the file is missing.
+          ls -l opec_basket_data.csv 
+          echo "Verification complete. File is ready to commit."
+      # ------------------------------------------------------------------
 
       - name: ➕ Commit and Push New Data
         # Action to automatically commit and push any changes detected
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
+          # This pattern explicitly tells the action which file to look for and commit.
           file_pattern: 'opec_basket_data.csv'
+          # Optional: Use the default GITHUB_TOKEN for authentication
+          token: ${{ secrets.GITHUB_TOKEN }}
