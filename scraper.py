@@ -1,111 +1,143 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import time
-import csv
-import xml.etree.ElementTree as ET
 import os
+import csv
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+import xml.etree.ElementTree as ET
 
 # --- Configuration for GitHub Actions ---
-XML_URL = "https://www.opec.org/basket/basketDayArchives.xml"
+DATA_DIR_NAME = "data"
 OUTPUT_FILENAME = "opec_basket_data.csv"
-FIELDNAMES = ["Date", "Price", "Currency"]
-# The XML uses a default namespace. We must register it.
-NAMESPACE = {'ns': 'http://tempuri.org/basketDayArchives.xsd'}
+URL = "https://www.opec.org/basket/basketXML.xml"
+FIELD_NAMES = ["date", "price"]
 
 def get_webdriver():
-    """Configures and initializes a headless Chrome WebDriver for GitHub Actions."""
-    options = Options()
+    """Configures and returns a headless Chrome WebDriver for GitHub Actions."""
+    print("Setting up Chrome WebDriver...")
     
-    # 💡 FIX 1: Essential headless mode and sandbox arguments for CI/CD runners
-    options.add_argument("--headless=new") 
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
+    # Configure options for headless execution on a Linux runner (Ubuntu)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")      # Use new headless mode
+    chrome_options.add_argument("--no-sandbox")        # Necessary for running in containerized environments
+    chrome_options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
+    chrome_options.add_argument("--window-size=1920,1080")
     
-    # 💡 FIX 2: Use webdriver_manager to handle driver path dynamically
-    service = Service(ChromeDriverManager().install())
-    
-    driver = webdriver.Chrome(service=service, options=options)
-    print("WebDriver initialized successfully in headless mode.")
-    return driver
-
-def scrape_data(driver):
-    """Navigates to the URL, scrapes the XML page source, and extracts data."""
     try:
-        driver.get(XML_URL)
-        print(f"Navigated to {XML_URL}")
-        time.sleep(5) 
-        
-        # 💡 FIX 3 (CRITICAL): Use the 'pre' tag content to get clean XML 
-        # This bypasses the HTML wrapper Chrome puts around raw XML files.
-        try:
-            # Try to find the content of the <pre> tag
-            xml_element = driver.find_element(by=webdriver.common.by.By.TAG_NAME, value="pre")
-            page_source = xml_element.text
-            print("Successfully extracted XML from <pre> tag.")
-        except Exception:
-            # Fallback to the full page source if the <pre> tag method fails
-            page_source = driver.page_source
-            print("Warning: Fell back to full page source. XML parsing might be fragile.")
-
-
-        # Parse the XML data
-        root = ET.fromstring(page_source)
-
-        extracted_data = []
-        
-        # 💡 FIX 4: Correctly target NESTED ELEMENTS (<ns:Date>, <ns:Value>) and their .text
-        for entry in root.findall(".//ns:BasketList", NAMESPACE):
-            date_element = entry.find('ns:Date', NAMESPACE)
-            value_element = entry.find('ns:Value', NAMESPACE)
-            
-            date = date_element.text if date_element is not None else 'N/A'
-            value = value_element.text if value_element is not None else 'N/A'
-            
-            if date != 'N/A' and value != 'N/A':
-                extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
-
-        count = len(extracted_data)
-        print(f"Extracted {count} data points.")
-        if count == 0:
-            print("CRITICAL ERROR: Extracted zero data points. XML parsing likely failed.")
-            
-        return extracted_data
-
-    except ET.ParseError as pe:
-        print(f"CRITICAL XML PARSING ERROR: {pe}")
-        print("This usually means the 'page_source' is not clean XML (contains HTML tags).")
-        return None
+        # Automatically download and manage the correct driver version
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        print("WebDriver initialized successfully.")
+        return driver
     except Exception as e:
-        print(f"An unexpected error occurred during scraping: {e}")
+        print(f"Error initializing WebDriver: {e}")
+        # Try a fixed path as a fallback if webdriver-manager fails
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            return driver
+        except Exception as e_fallback:
+            print(f"Fallback WebDriver initialization failed: {e_fallback}")
+            return None
+
+
+def scrape_data(driver, url):
+    """
+    Navigates to the XML URL, waits for the content, and extracts the raw XML text.
+    """
+    print(f"Navigating to URL: {url}")
+    try:
+        driver.get(url)
+        
+        # XML content often appears inside a <pre> tag in the browser view.
+        # Wait until the <pre> element is loaded and visible.
+        wait = WebDriverWait(driver, 10)
+        pre_element = wait.until(
+            EC.presence_of_element_located((By.TAG_NAME, "pre"))
+        )
+        
+        # Get the full text content from the <pre> tag
+        raw_xml_text = pre_element.text
+        print("Raw XML content extracted.")
+        return raw_xml_text
+
+    except Exception as e:
+        print(f"Error during scraping or element location: {e}")
         return None
+    finally:
+        driver.quit()
+        print("WebDriver closed.")
+
+
+def parse_xml_data(xml_text):
+    """Parses the raw XML text into a list of dictionaries."""
+    data = []
+    if not xml_text:
+        return data
+
+    try:
+        # The XML file uses the format <Date><YYYYMMDD>...</Date>
+        root = ET.fromstring(xml_text)
+        
+        for date_element in root.findall('Date'):
+            date_key = list(date_element.keys())[0]  # Gets the attribute name (e.g., '20230101')
+            price = date_element.text              # Gets the price value
+            
+            # The XML structure is <Date YYYYMMDD="Price">, which we'll convert 
+            # to a standard dictionary format for CSV.
+            data.append({
+                "date": date_key,
+                "price": price
+            })
+            
+        print(f"Successfully parsed {len(data)} data points.")
+        return data
+
+    except ET.ParseError as e:
+        print(f"XML Parsing Error: {e}")
+        return []
+    except Exception as e:
+        print(f"General parsing error: {e}")
+        return []
+
 
 def write_data_to_csv(data, filename, fieldnames):
-    """Writes the list of dictionaries to a CSV file in the repository root."""
+    """Creates the 'data' directory and writes the CSV file inside it."""
     if not data:
         print("No data to write. Aborting CSV creation.")
         return
 
+    # 1. Define the directory path relative to the repo root
+    data_dir = os.path.join(os.getcwd(), DATA_DIR_NAME)
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # 2. Define the full file path inside the new directory
+    file_path = os.path.join(data_dir, filename) 
+    
     try:
-        # 💡 FIX 5: Save to the local working directory (the GitHub Actions runner)
-        file_path = os.path.join(os.getcwd(), filename)
+        # Write the list of dictionaries to a CSV file
+        # We use 'w' mode (write) to overwrite the old file with the complete, new data every time.
         with open(file_path, mode="w", newline="", encoding="utf-8") as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data)
+            
         print(f"Scraped data successfully written to {file_path}")
+        
     except IOError as e:
         print(f"Error writing to CSV file: {e}")
 
+# --- Main Execution ---
 if __name__ == "__main__":
-    driver = None
-    try:
-        driver = get_webdriver()
-        data = scrape_data(driver)
-        write_data_to_csv(data, OUTPUT_FILENAME, FIELDNAMES)
-    finally:
-        if driver:
-            driver.quit()
-            print("WebDriver closed.")
+    driver = get_webdriver()
+    if driver:
+        xml_content = scrape_data(driver, URL)
+        
+        if xml_content:
+            parsed_data = parse_xml_data(xml_content)
+            
+            # Write new data to the data/ folder, overwriting the old file.
+            write_data_to_csv(parsed_data, OUTPUT_FILENAME, FIELD_NAMES)
