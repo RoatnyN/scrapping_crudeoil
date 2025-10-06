@@ -1,13 +1,45 @@
-# ... (Previous YAML content is the same)
+name: Daily Selenium Data Scraper 🌐
+
+on:
+  # Schedule: Runs every day at 00:00 UTC (midnight)
+  schedule:
+    - cron: '0 0 * * *'
+  # Manual Trigger: Allows you to run this workflow instantly
+  workflow_dispatch:
+
+jobs:
+  scrape_and_commit:
+    runs-on: ubuntu-latest # The virtual machine environment
+
+    # Ensure the GITHUB_TOKEN has permission to write back to the repo
+    permissions:
+      contents: write
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # This token is automatically provided by GitHub and is necessary
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: 📦 Install Python dependencies
-        # Install Selenium and the necessary webdriver_manager
+        # Install Selenium, webdriver-manager, and pandas
         run: |
           python -m pip install --upgrade pip
           pip install selenium webdriver-manager pandas
 
       - name: ⚙️ Run Scraper Script (with Selenium)
+        # Executes your Python file. The fixed scraper.py will save to 'opec_basket_data.csv'
         run: python scraper.py
-# ------------------------------------------------------------------
+
+      # ------------------------------------------------------------------
+      # CRITICAL DIAGNOSTIC STEP
+      # Checks the repository root for the output file and displays its content
       - name: 🔎 CRITICAL: Check Directory Contents & File Status
         run: |
           echo "--- Directory Listing ---"
@@ -19,14 +51,22 @@
           if [ -f "opec_basket_data.csv" ]; then
             echo "SUCCESS: 'opec_basket_data.csv' found."
             echo "File Size:"
-            # Display the first few lines of the CSV to confirm it has data
-            head opec_basket_data.csv
+            ls -lh opec_basket_data.csv
+            echo "--- First 5 lines of the CSV file ---"
+            # Display the first few lines of the CSV to confirm it has data (not just the header)
+            head -n 5 opec_basket_data.csv
           else
             echo "FAILURE: 'opec_basket_data.csv' NOT found. The scraper failed to produce output."
-            # Force the workflow to fail here if the file is missing
+            # Force the workflow to fail here if the file is missing to stop the commit step
             exit 1 
           fi
-# ------------------------------------------------------------------
+      # ------------------------------------------------------------------
+
       - name: ➕ Commit and Push New Data
+        # Action to automatically commit and push any changes detected
         uses: stefanzweifel/git-auto-commit-action@v5
-# ... (Rest of the YAML is the same)
+        with:
+          commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
+          # This pattern explicitly tells the action which file to look for and commit.
+          file_pattern: 'opec_basket_data.csv'
+          token: ${{ secrets.GITHUB_TOKEN }}
