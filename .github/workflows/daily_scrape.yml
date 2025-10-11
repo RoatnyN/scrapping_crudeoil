@@ -57,6 +57,3 @@ jobs:
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
           file_pattern: data/opec_basket_data.csv
-
-
-
