@@ -20,8 +20,8 @@ def get_webdriver():
     print("Setting up Chrome WebDriver...")
     
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")      # Use new headless mode
-    chrome_options.add_argument("--no-sandbox")        # Necessary for running in containerized environments
+    chrome_options.add_argument("--headless")      # Standard headless mode
+    chrome_options.add_argument("--no-sandbox")    # Necessary for running in containerized environments
     chrome_options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
     chrome_options.add_argument("--window-size=1920,1080")
     
@@ -91,6 +91,7 @@ def write_data_to_csv(data, filename, fieldnames):
     try:
         # Ensure the data directory exists
         os.makedirs(DATA_DIR_NAME, exist_ok=True)
+        print(f"Data directory checked/created: {DATA_DIR_NAME}")
         
         # Save the file in the data directory
         file_path = os.path.join(DATA_DIR_NAME, filename) 
