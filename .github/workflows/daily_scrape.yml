@@ -1,16 +1,14 @@
 name: Daily Selenium Data Scraper
 on:
-  # Schedule: Runs every day at 00:00 UTC (midnight)
   schedule:
     - cron: '0 0 * * *'
-  # Manual Trigger: Allows you to run this workflow instantly
   workflow_dispatch:
 
 jobs:
   scrape_and_commit:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # This is essential for the stefanzweifel/git-auto-commit-action to work
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -31,8 +29,7 @@ jobs:
       - name: Run Scraper Script (with Selenium)
         run: python scraper.py
 
-      # ADDED DIAGNOSTIC STEP: Confirm the file exists before committing
-      - name: CRITICAL: Check Directory Contents & File Status
+      - name: Check Directory Contents & File Status
         run: |
           echo "--- Directory Listing ---"
           ls -lh
@@ -44,7 +41,6 @@ jobs:
             head -n 5 opec_basket_data.csv
           else
             echo "FAILURE: 'opec_basket_data.csv' NOT found. The scraper failed to produce output."
-            # Force the workflow to fail here if the file is missing
             exit 1
           fi
 
@@ -52,5 +48,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
-          file_pattern: data/opec_basket_data.csv
-
+          file_pattern: opec_basket_data.csv
