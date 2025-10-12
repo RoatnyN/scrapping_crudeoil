@@ -35,12 +35,12 @@ jobs:
           ls -lh
           
           echo "--- File Verification ---"
-          if [ -f "opec_basket_data.csv" ]; then
-            echo "SUCCESS: 'opec_basket_data.csv' found."
+          if [ -f "data/opec_basket_data.csv" ]; then
+            echo "SUCCESS: 'data/opec_basket_data.csv' found."
             echo "--- First 5 lines of the CSV file ---"
-            head -n 5 opec_basket_data.csv
+            head -n 5 data/opec_basket_data.csv
           else
-            echo "FAILURE: 'opec_basket_data.csv' NOT found. The scraper failed to produce output."
+            echo "FAILURE: 'data/opec_basket_data.csv' NOT found. The scraper failed to produce output."
             exit 1
           fi
 
@@ -48,4 +48,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
-          file_pattern: opec_basket_data.csv
+          file_pattern: data/opec_basket_data.csv
