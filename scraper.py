@@ -9,9 +9,10 @@ import os
 
 # Set Chrome Options
 options = Options()
-options.add_argument("--headless")  # Run in headless mode for CI
+options.add_argument("--headless")  # Consider removing this if facing issues
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36")
 
 # Initialize WebDriver using webdriver-manager
 service = Service(ChromeDriverManager().install())
@@ -23,7 +24,7 @@ try:
     driver.get(url)
 
     # Wait for the page to load completely
-    time.sleep(5)
+    time.sleep(10)  # Increase the wait time if necessary
 
     # Get the page source (XML data)
     page_source = driver.page_source
