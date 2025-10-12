@@ -30,17 +30,28 @@ try:
     print("Page source fetched successfully.")
 
     # Parse the XML data
-    tree = ET.ElementTree(ET.fromstring(page_source))
-    root = tree.getroot()
+    try:
+        root = ET.fromstring(page_source)
+    except ET.ParseError as e:
+        print(f"Failed to parse XML: {e}")
+        print("Fetched content:")
+        print(page_source)  # Print the fetched content for debugging
+        exit(1)  # Exit or handle the error as needed
 
     # Extract the relevant data
     namespace = {'ns': 'http://tempuri.org/basketDayArchives.xsd'}
-
     extracted_data = []
+
     for entry in root.findall(".//ns:BasketList", namespace):
         date = entry.get("data")
         value = entry.get("val")
-        extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
+        if date and value:  # Ensure both date and value are present
+            extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
+
+    # Check if extracted data is not empty
+    if not extracted_data:
+        print("No data extracted.")
+        exit(1)
 
     # Define the path to save the CSV file in the data directory
     output_path = os.path.join("data", "opec_basket_data.csv")
