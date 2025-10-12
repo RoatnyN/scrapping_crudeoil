@@ -1,118 +1,57 @@
-import os
-import csv
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+import time
+import csv
 import xml.etree.ElementTree as ET
+import os
 
-# --- Configuration for GitHub Actions ---
-DATA_DIR_NAME = "data"
-OUTPUT_FILENAME = "opec_basket_data.csv"
-URL = "https://www.opec.org/basket/basketXML.xml"
-FIELD_NAMES = ["date", "price"]
+# Set Chrome Options
+options = Options()
+options.add_argument("--headless")  # Run in headless mode for CI
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
 
-def get_webdriver():
-    """Configures and returns a headless Chrome WebDriver for GitHub Actions."""
-    print("Setting up Chrome WebDriver...")
-    
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")      # Standard headless mode
-    chrome_options.add_argument("--no-sandbox")    # Necessary for running in containerized environments
-    chrome_options.add_argument("--disable-dev-shm-usage") # Overcome limited resource problems
-    chrome_options.add_argument("--window-size=1920,1080")
-    
-    try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        print("WebDriver initialized successfully.")
-        return driver
-    except Exception as e:
-        print(f"Error initializing WebDriver: {e}")
-        return None
+# Initialize WebDriver using webdriver-manager
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=options)
 
-def scrape_data(driver, url):
-    """Navigates to the XML URL, waits for the content, and extracts the raw XML text."""
-    print(f"Navigating to URL: {url}")
-    try:
-        driver.get(url)
-        wait = WebDriverWait(driver, 10)
-        pre_element = wait.until(
-            EC.presence_of_element_located((By.TAG_NAME, "pre"))
-        )
-        raw_xml_text = pre_element.text
-        print("Raw XML content extracted.")
-        return raw_xml_text
+try:
+    # URL to scrape
+    url = "https://www.opec.org/basket/basketDayArchives.xml"
+    driver.get(url)
 
-    except Exception as e:
-        print(f"Error during scraping or element location: {e}")
-        return None
-    finally:
-        driver.quit()
-        print("WebDriver closed.")
+    # Wait for the page to load completely
+    time.sleep(5)
 
-def parse_xml_data(xml_text):
-    """Parses the raw XML text into a list of dictionaries."""
-    data = []
-    if not xml_text:
-        return data
+    # Get the page source (XML data)
+    page_source = driver.page_source
+    print("Page source fetched successfully.")
 
-    try:
-        root = ET.fromstring(xml_text)
-        
-        for date_element in root.findall('Date'):
-            date_key = list(date_element.keys())[0]  # Gets the attribute name (e.g., '20230101')
-            price = date_element.text              # Gets the price value
-            
-            data.append({
-                "date": date_key,
-                "price": price
-            })
-            
-        print(f"Successfully parsed {len(data)} data points.")
-        return data
+    # Parse the XML data
+    tree = ET.ElementTree(ET.fromstring(page_source))
+    root = tree.getroot()
 
-    except ET.ParseError as e:
-        print(f"XML Parsing Error: {e}")
-        return []
-    except Exception as e:
-        print(f"General parsing error: {e}")
-        return []
+    # Extract the relevant data
+    namespace = {'ns': 'http://tempuri.org/basketDayArchives.xsd'}
 
-def write_data_to_csv(data, filename, fieldnames):
-    """Writes the list of dictionaries to a CSV file in the data directory of the repository."""
-    if not data:
-        print("No data to write. Aborting CSV creation.")
-        return
+    extracted_data = []
+    for entry in root.findall(".//ns:BasketList", namespace):
+        date = entry.get("data")
+        value = entry.get("val")
+        extracted_data.append({"Date": date, "Price": value, "Currency": "USD"})
 
-    try:
-        # Ensure the data directory exists
-        os.makedirs(DATA_DIR_NAME, exist_ok=True)
-        print(f"Data directory checked/created: {DATA_DIR_NAME}")
-        
-        # Save the file in the data directory
-        file_path = os.path.join(DATA_DIR_NAME, filename) 
-        
-        with open(file_path, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(data)
-            
-        print(f"Scraped data successfully written to {file_path}")
-        
-    except IOError as e:
-        print(f"Error writing to CSV file: {e}")
+    # Define the path to save the CSV file in the data directory
+    output_path = os.path.join("data", "opec_basket_data.csv")
 
-# --- Main Execution ---
-if __name__ == "__main__":
-    driver = get_webdriver()
-    if driver:
-        xml_content = scrape_data(driver, URL)
-        
-        if xml_content:
-            parsed_data = parse_xml_data(xml_content)
-            # Write new data to the data/ folder, overwriting the old file.
-            write_data_to_csv(parsed_data, OUTPUT_FILENAME, FIELD_NAMES)
+    # Write extracted data to a CSV file in the data directory
+    with open(output_path, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["Date", "Price", "Currency"])
+        writer.writeheader()
+        writer.writerows(extracted_data)
+
+    print(f"Scraped data has been written to {output_path}")
+
+finally:
+    driver.quit()
