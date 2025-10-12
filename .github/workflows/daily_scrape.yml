@@ -6,7 +6,6 @@ on:
   # Manual Trigger: Allows you to run this workflow instantly
   workflow_dispatch:
 
-# CRITICAL FIX: Grant explicit write permission to the GITHUB_TOKEN
 jobs:
   scrape_and_commit:
     runs-on: ubuntu-latest
@@ -27,14 +26,13 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          # Includes the necessary libraries for data processing and Selenium
-          pip install selenium webdriver-manager pandas 
+          pip install selenium webdriver-manager pandas
 
       - name: Run Scraper Script (with Selenium)
         run: python scraper.py
 
       # ADDED DIAGNOSTIC STEP: Confirm the file exists before committing
-      - name:CRITICAL: Check Directory Contents & File Status 
+      - name:CRITICAL: Check Directory Contents & File Status
         run: |
           echo "--- Directory Listing ---"
           ls -lh
@@ -43,16 +41,14 @@ jobs:
           if [ -f "opec_basket_data.csv" ]; then
             echo "SUCCESS: 'opec_basket_data.csv' found."
             echo "--- First 5 lines of the CSV file ---"
-            # Display the first few lines to confirm it has data
             head -n 5 opec_basket_data.csv
           else
             echo "FAILURE: 'opec_basket_data.csv' NOT found. The scraper failed to produce output."
             # Force the workflow to fail here if the file is missing
-            exit 1 
+            exit 1
           fi
 
       - name: ➕ Commit and Push New Data
-        # This action handles setting up Git user details and pushing the file
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
