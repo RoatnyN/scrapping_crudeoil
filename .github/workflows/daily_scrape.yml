@@ -1,7 +1,7 @@
 name: Daily Selenium Data Scraper
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '30 9 * * *'
   workflow_dispatch:
 
 jobs:
@@ -49,3 +49,4 @@ jobs:
         with:
           commit_message: "Data Update: Automated daily OPEC basket scrape via Selenium"
           file_pattern: data/opec_basket_data.csv
+
